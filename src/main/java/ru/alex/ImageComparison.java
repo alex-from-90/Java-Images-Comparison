@@ -24,9 +24,13 @@ public class ImageComparison {
             BufferedImage img2 = ImageIO.read(new File("src/main/resources/images/imageB.jpg"));
 
             List<int[]> diffPixels = findDifferingPixels(img1, img2);
-            BufferedImage img2WithMarks = markDifferingPixels(img2, diffPixels);
 
-            generateHtml(img1, img2WithMarks, diffPixels);
+            // Исправление здесь: получаем результат работы метода markDifferingPixels
+            MarkResult result = markDifferingPixels(img2, diffPixels);
+
+            // И теперь мы передаем изображение и количество различий отдельно
+
+            generateHtml(img1, result.markedImage, result.totalDifferences);
 
         } catch (IOException e) {
             System.out.println("An error occurred: " + e.getMessage());
@@ -50,7 +54,17 @@ public class ImageComparison {
 
         return differingPixels;
     }
-    public static BufferedImage markDifferingPixels(BufferedImage img, List<int[]> diffPixels) {
+    public static class MarkResult {
+        public final BufferedImage markedImage;
+        public final int totalDifferences;
+
+        public MarkResult(BufferedImage markedImage, int totalDifferences) {
+            this.markedImage = markedImage;
+            this.totalDifferences = totalDifferences;
+        }
+    }
+
+    public static MarkResult markDifferingPixels(BufferedImage img, List<int[]> diffPixels) {
         int[][] labels = new int[img.getWidth()][img.getHeight()];
         int nextLabel = 1;
 
@@ -99,8 +113,8 @@ public class ImageComparison {
         Graphics2D g2d = img.createGraphics();
         g2d.drawImage(outlineImage, 0, 0, null);
         g2d.dispose();
-
-        return img;
+        int totalDifferences = nextLabel - 1;
+        return new MarkResult(img, totalDifferences);
     }
 
     private static void floodFill(int x, int y, int label, int[][] labels, BufferedImage img, List<int[]> diffPixels) {
@@ -133,8 +147,9 @@ public class ImageComparison {
         }
         return false;
     }
-    public static void generateHtml(BufferedImage img1, BufferedImage img2WithDifferences, List<int[]> diffPixels) throws IOException {
-        boolean identical = diffPixels.isEmpty();
+    public static void generateHtml(BufferedImage img1, BufferedImage img2WithDifferences, int totalDifferences)
+            throws IOException {
+
 
         try (PrintWriter writer = new PrintWriter("comparison.html", StandardCharsets.UTF_8)) {
             writer.println("<!DOCTYPE html>");
@@ -160,10 +175,13 @@ public class ImageComparison {
             writer.println("</div>");
 
             // Добавляем сообщение, если изображения идентичны
-            if (identical) {
+            // Если изображения идентичны, сообщаем об этом
+            if (totalDifferences == 0) {
                 writer.println("<h1>Изображения идентичны!</h1>");
+            } else {
+                // В противном случае выводим количество областей, в которых есть различия
+                writer.println("<p>Number of different areas: " + totalDifferences + ".</p>");
             }
-
             writer.println("</div>");
 
             writer.println("</body>");
