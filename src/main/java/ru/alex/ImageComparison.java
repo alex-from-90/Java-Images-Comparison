@@ -1,27 +1,29 @@
 package ru.alex;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.ArrayList;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Queue;
 import java.util.*;
 
 public class ImageComparison {
 
     private static final int[] DX = {-1, 0, 1, 0};
     private static final int[] DY = {0, 1, 0, -1};
+    // Настройка точности распознавания (минимальное количество смежных пикселей)
+    private static final int MIN_DIFF_PIXELS = 350;
+    private static final int NEIGHBOR_RADIUS = 1;
+
     public static void main(String[] args) {
         try {
-            BufferedImage img1 = ImageIO.read(new File("src/main/resources/images/imageA.jpg"));
-            BufferedImage img2 = ImageIO.read(new File("src/main/resources/images/imageB.jpg"));
+            BufferedImage img1 = ImageIO.read(new File("src/main/resources/images/2imageB.jpg"));
+            BufferedImage img2 = ImageIO.read(new File("src/main/resources/images/112imageB.jpg"));
 
             List<int[]> diffPixels = findDifferingPixels(img1, img2);
 
@@ -54,6 +56,7 @@ public class ImageComparison {
 
         return differingPixels;
     }
+
     public static class MarkResult {
         public final BufferedImage markedImage;
         public final int totalDifferences;
@@ -66,71 +69,70 @@ public class ImageComparison {
 
     public static MarkResult markDifferingPixels(BufferedImage img, List<int[]> diffPixels) {
         int[][] labels = new int[img.getWidth()][img.getHeight()];
+        Map<Integer, Integer> labelSizes = new HashMap<>();
         int nextLabel = 1;
 
         // Сначала помечаем все различающиеся пиксели
         for (int[] pixel : diffPixels) {
             if (labels[pixel[0]][pixel[1]] == 0) {
-                floodFill(pixel[0], pixel[1], nextLabel++, labels, img, diffPixels);
+                floodFill(pixel[0], pixel[1], nextLabel, labels, img, diffPixels, labelSizes);
+                nextLabel++;
             }
         }
 
-        // Создаём пустое изображение для рисования рамок
         BufferedImage outlineImage = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2dOutline = outlineImage.createGraphics();
-
-        // Устанавливаем настройки пера для рамки
         g2dOutline.setColor(Color.RED);
         g2dOutline.setStroke(new BasicStroke(1));
 
-        // Проходимся по меткам и рисуем рамки
-        for (int label = 1; label < nextLabel; label++) {
-            int minX = Integer.MAX_VALUE;
-            int minY = Integer.MAX_VALUE;
-            int maxX = Integer.MIN_VALUE;
-            int maxY = Integer.MIN_VALUE;
+        // Проходим по меткам
+        int totalDifferences = 0;
+        for (int currentLabel = 1; currentLabel < nextLabel; currentLabel++) {
+            int labelSize = labelSizes.getOrDefault(currentLabel, 0);
+            if (labelSize >= MIN_DIFF_PIXELS) {
+                totalDifferences++;
 
-            // Находим минимальные и максимальные координаты для различающихся пикселей для текущей метки
-            for (int y = 0; y < img.getHeight(); y++) {
-                for (int x = 0; x < img.getWidth(); x++) {
-                    if (labels[x][y] == label) {
-                        minX = Math.min(minX, x);
-                        minY = Math.min(minY, y);
-                        maxX = Math.max(maxX, x);
-                        maxY = Math.max(maxY, y);
+                int minX = Integer.MAX_VALUE;
+                int minY = Integer.MAX_VALUE;
+                int maxX = Integer.MIN_VALUE;
+                int maxY = Integer.MIN_VALUE;
+
+                for (int y = 0; y < img.getHeight(); y++) {
+                    for (int x = 0; x < img.getWidth(); x++) {
+                        if (labels[x][y] == currentLabel) {
+                            minX = Math.min(minX, x);
+                            minY = Math.min(minY, y);
+                            maxX = Math.max(maxX, x);
+                            maxY = Math.max(maxY, y);
+                        }
                     }
                 }
-            }
 
-            // Рисуем рамку на outlineImage
-            g2dOutline.drawRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
+                g2dOutline.drawRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
+            }
         }
 
-        // Заканчиваем рисовать на outlineImage и освобождаем ресурсы
         g2dOutline.dispose();
-
-        // Накладываем изображение с рамками на исходное
         Graphics2D g2d = img.createGraphics();
         g2d.drawImage(outlineImage, 0, 0, null);
         g2d.dispose();
-        int totalDifferences = nextLabel - 1;
+
         return new MarkResult(img, totalDifferences);
     }
 
-    private static void floodFill(int x, int y, int label, int[][] labels, BufferedImage img, List<int[]> diffPixels) {
-
+    private static void floodFill(int x, int y, int label, int[][] labels, BufferedImage img, List<int[]> diffPixels, Map<Integer, Integer> labelSizes) {
         Queue<int[]> queue = new LinkedList<>();
         queue.add(new int[]{x, y});
         labels[x][y] = label;
 
         while (!queue.isEmpty()) {
             int[] pixel = queue.poll();
+            labelSizes.put(label, labelSizes.getOrDefault(label, 0) + 1);
 
             for (int i = 0; i < 4; i++) {
                 int nx = pixel[0] + DX[i];
                 int ny = pixel[1] + DY[i];
 
-                // Проверяем, что следующий пиксель находится внутри изображения и в списке различающихся пикселей
                 if (nx >= 0 && nx < img.getWidth() && ny >= 0 && ny < img.getHeight() && labels[nx][ny] == 0 && isDiffPixel(nx, ny, diffPixels)) {
                     queue.add(new int[]{nx, ny});
                     labels[nx][ny] = label;
@@ -141,12 +143,17 @@ public class ImageComparison {
 
     private static boolean isDiffPixel(int x, int y, List<int[]> diffPixels) {
         for (int[] diffPixel : diffPixels) {
-            if (diffPixel[0] == x && diffPixel[1] == y) {
+            int diffX = diffPixel[0];
+            int diffY = diffPixel[1];
+
+            // Проверяем, находится ли текущий пиксель в окрестности diffX, diffY
+            if (Math.abs(x - diffX) <= NEIGHBOR_RADIUS && Math.abs(y - diffY) <= NEIGHBOR_RADIUS) {
                 return true;
             }
         }
         return false;
     }
+
     public static void generateHtml(BufferedImage img1, BufferedImage img2WithDifferences, int totalDifferences)
             throws IOException {
 
@@ -180,7 +187,7 @@ public class ImageComparison {
                 writer.println("<h1>Изображения идентичны!</h1>");
             } else {
                 // В противном случае выводим количество областей, в которых есть различия
-                writer.println("<p>Number of different areas: " + totalDifferences + ".</p>");
+                writer.println("<p>Количество различий: " + totalDifferences + ".</p>");
             }
             writer.println("</div>");
 
@@ -189,8 +196,6 @@ public class ImageComparison {
             writer.close();
         }
     }
-
-
 
 
     public static String encodeToString(BufferedImage image, String type) throws IOException {
