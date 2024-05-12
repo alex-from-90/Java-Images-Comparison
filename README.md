@@ -27,4 +27,4 @@ BufferedImage img2 = ImageIO.read(new File("src/main/resources/images/imageB.jpg
 MIN_DIFF_PIXELS
 NEIGHBOR_RADIUS
 ```
-
+<br/>Вопросы, обсуждение и предложения в моём телеграмм канале [https://t.me/my_it_word](https://t.me/my_it_word).
