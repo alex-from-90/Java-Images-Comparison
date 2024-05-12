@@ -17,7 +17,7 @@ public class ImageComparison {
     private static final int[] DX = {-1, 0, 1, 0};
     private static final int[] DY = {0, 1, 0, -1};
     // Настройка точности распознавания (минимальное количество смежных пикселей)
-    private static final int MIN_DIFF_PIXELS = 350;
+    private static final int MIN_DIFF_PIXELS = 150;
     private static final int NEIGHBOR_RADIUS = 1;
 
     public static void main(String[] args) {
@@ -27,10 +27,10 @@ public class ImageComparison {
 
             List<int[]> diffPixels = findDifferingPixels(img1, img2);
 
-            // Исправление здесь: получаем результат работы метода markDifferingPixels
+            //  получаем результат работы метода markDifferingPixels
             MarkResult result = markDifferingPixels(img2, diffPixels);
 
-            // И теперь мы передаем изображение и количество различий отдельно
+            // И передаем изображение и количество различий отдельно
 
             generateHtml(img1, result.markedImage, result.totalDifferences);
 
@@ -57,14 +57,7 @@ public class ImageComparison {
         return differingPixels;
     }
 
-    public static class MarkResult {
-        public final BufferedImage markedImage;
-        public final int totalDifferences;
-
-        public MarkResult(BufferedImage markedImage, int totalDifferences) {
-            this.markedImage = markedImage;
-            this.totalDifferences = totalDifferences;
-        }
+    public record MarkResult(BufferedImage markedImage, int totalDifferences) {
     }
 
     public static MarkResult markDifferingPixels(BufferedImage img, List<int[]> diffPixels) {
